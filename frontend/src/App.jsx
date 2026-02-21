@@ -11,6 +11,13 @@ const UPLOAD_STATUS_STEPS = [
   { delay: 35000, text: 'Almost there...' },
 ]
 
+const QUICK_ACTIONS = [
+  { label: 'Understand My Results', text: 'Help me understand my ReCOGnAIze results' },
+  { label: 'Get Personalized Advice', text: 'Give me personalized advice based on my report' },
+  { label: 'Create Action Plan', text: 'Create an action plan to improve my cognitive health' },
+  { label: 'When to Retest?', text: 'When should I repeat this assessment?' },
+]
+
 function App() {
   const [screen, setScreen] = useState('upload') // 'upload' | 'chat'
   const [message, setMessage] = useState('')
@@ -156,29 +163,94 @@ function App() {
   const renderMessageContent = (msg) => {
     if (msg.role !== 'assistant') return msg.content
 
-    const normalizeAssistantLine = (line) => {
-      let cleaned = line.trim()
-      cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, '$1')
-      cleaned = cleaned.replace(/\*(.*?)\*/g, '$1')
-      cleaned = cleaned.replace(/^\*+\s*/, '')
-      cleaned = cleaned.replace(/\*+$/g, '')
-      return cleaned
+    const rawLines = (msg.content || '').split('\n')
+    const elements = []
+    let sectionLines = []
+
+    const flushSection = () => {
+      if (sectionLines.length > 0) {
+        elements.push(
+          <div key={`sec-${elements.length}`} className="msg-section-block">
+            {sectionLines.map((sl, si) => (
+              <div key={si} className={sl.cls}>{sl.content}</div>
+            ))}
+          </div>
+        )
+        sectionLines = []
+      }
     }
 
-    const rawLines = (msg.content || '')
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .map(normalizeAssistantLine)
+    rawLines.forEach((rawLine, index) => {
+      const line = rawLine.trim()
+      if (line.length === 0) {
+        flushSection()
+        return
+      }
 
-    return rawLines.map((line, index) => {
-      const isBullet = line.startsWith('•') || line.startsWith('-')
-      return (
-        <div key={index} className={isBullet ? 'msg-line msg-bullet' : 'msg-line'}>
-          {line}
-        </div>
-      )
+      // Detect headings: lines like "### Heading" or "**Heading:**" or "HEADING:"
+      const hashMatch = line.match(/^#{1,4}\s+(.+)/)
+      const boldHeadingMatch = line.match(/^\*\*(.+?)\*\*:?$/)
+      const capsHeadingMatch = line.match(/^([A-Z][A-Z\s&]{3,}):?$/)
+
+      if (hashMatch || boldHeadingMatch || capsHeadingMatch) {
+        flushSection()
+        const headingText = (hashMatch?.[1] || boldHeadingMatch?.[1] || capsHeadingMatch?.[1]).replace(/\*+/g, '').trim()
+        elements.push(
+          <div key={index} className="msg-line msg-heading">{headingText}</div>
+        )
+        return
+      }
+
+      // Render inline formatting
+      const renderInline = (text) => {
+        const parts = []
+        let remaining = text
+        let partKey = 0
+
+        while (remaining.length > 0) {
+          const boldMatch = remaining.match(/\*\*(.+?)\*\*/)
+          if (boldMatch) {
+            const beforeBold = remaining.substring(0, boldMatch.index)
+            if (beforeBold) parts.push(<span key={partKey++}>{beforeBold}</span>)
+            parts.push(<span key={partKey++} className="msg-bold">{boldMatch[1]}</span>)
+            remaining = remaining.substring(boldMatch.index + boldMatch[0].length)
+          } else {
+            // Clean remaining asterisks
+            const cleaned = remaining.replace(/\*+/g, '')
+            if (cleaned) parts.push(<span key={partKey++}>{cleaned}</span>)
+            break
+          }
+        }
+        return parts.length > 0 ? parts : text.replace(/\*+/g, '')
+      }
+
+      // Detect bullet points
+      const bulletMatch = line.match(/^[\u2022\-\*]\s+(.+)/)
+      // Detect numbered lines
+      const numberedMatch = line.match(/^(\d+[\.\)]\s+)(.+)/)
+
+      if (bulletMatch) {
+        const content = renderInline(bulletMatch[1])
+        sectionLines.push({ cls: 'msg-line msg-bullet', content })
+      } else if (numberedMatch) {
+        const content = renderInline(line)
+        sectionLines.push({ cls: 'msg-line msg-numbered', content })
+      } else {
+        // Regular text line
+        const content = renderInline(line)
+        if (sectionLines.length > 0) {
+          sectionLines.push({ cls: 'msg-line', content })
+        } else {
+          elements.push(
+            <div key={index} className="msg-line">{content}</div>
+          )
+        }
+      }
     })
+
+    flushSection()
+
+    return elements
   }
 
   // ─── Upload Screen ───
@@ -246,6 +318,23 @@ function App() {
           </button>
         </div>
 
+        {/* Inline quick actions — visible after chat starts */}
+        {hasMessages && (
+          <div className="quick-actions-inline">
+            {QUICK_ACTIONS.map((action) => (
+              <button
+                key={action.label}
+                type="button"
+                className="quick-btn-sm"
+                disabled={loading}
+                onClick={() => handleQuickReply(action.text)}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Messages area */}
         <div className="messages-area">
           {error && (
@@ -265,34 +354,16 @@ function App() {
             <div className="quick-actions-wrap">
               <p className="quick-actions-label">What would you like to do?</p>
               <div className="quick-actions">
-                <button
-                  type="button"
-                  className="quick-btn"
-                  onClick={() => handleQuickReply('Help me understand my ReCOGnAIze results')}
-                >
-                  Understand My Results
-                </button>
-                <button
-                  type="button"
-                  className="quick-btn"
-                  onClick={() => handleQuickReply('Give me personalized advice based on my report')}
-                >
-                  Get Personalized Advice
-                </button>
-                <button
-                  type="button"
-                  className="quick-btn"
-                  onClick={() => handleQuickReply('Create an action plan to improve my cognitive health')}
-                >
-                  Create Action Plan
-                </button>
-                <button
-                  type="button"
-                  className="quick-btn"
-                  onClick={() => handleQuickReply('When should I repeat this assessment?')}
-                >
-                  When to Retest?
-                </button>
+                {QUICK_ACTIONS.map((action) => (
+                  <button
+                    key={action.label}
+                    type="button"
+                    className="quick-btn"
+                    onClick={() => handleQuickReply(action.text)}
+                  >
+                    {action.label}
+                  </button>
+                ))}
               </div>
             </div>
           )}
