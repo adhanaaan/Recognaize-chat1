@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import axios from 'axios'
 import logo from '../assets/logo.png'
+import BrainRegionCards from './BrainRegionCards'
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://recognaize-chat1.onrender.com'
 
@@ -366,6 +367,10 @@ function App() {
                 ))}
               </div>
             </div>
+          )}
+
+          {fileName && hasMessages && (
+            <BrainRegionCards />
           )}
 
           {messages.map((msg, idx) => (
