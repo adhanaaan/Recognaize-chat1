@@ -12,6 +12,15 @@ const UPLOAD_STATUS_STEPS = [
   { delay: 35000, text: 'Almost there...' },
 ]
 
+const SCORE_DOMAINS = [
+  { id: 'processing_speed', game: 'Symbol Matching', name: 'Processing Speed' },
+  { id: 'executive_function', game: 'Trail Making', name: 'Executive Function' },
+  { id: 'attention', game: 'Airplane Game', name: 'Attention & Impulse Control' },
+  { id: 'memory', game: 'Grocery Shopping', name: 'Memory & Processing Speed' },
+]
+
+const SCORE_LEVELS = ['Weak', 'Average', 'Strong']
+
 const QUICK_ACTIONS = [
   { label: 'Understand My Results', text: 'Help me understand my ReCOGnAIze results' },
   { label: 'Get Personalized Advice', text: 'Give me personalized advice based on my report' },
@@ -29,6 +38,13 @@ function App() {
   const [fileContext, setFileContext] = useState('')
   const [messages, setMessages] = useState([])
   const [error, setError] = useState(null)
+  const [showManualEntry, setShowManualEntry] = useState(false)
+  const [manualScores, setManualScores] = useState({
+    processing_speed: null,
+    executive_function: null,
+    attention: null,
+    memory: null,
+  })
   const textareaRef = useRef(null)
   const messagesEndRef = useRef(null)
 
@@ -152,12 +168,27 @@ function App() {
 
   const handleQuickReply = (text) => sendMessage(text)
 
+  const allScoresSelected = SCORE_DOMAINS.every((d) => manualScores[d.id] !== null)
+
+  const handleManualSubmit = () => {
+    if (!allScoresSelected) return
+    const lines = SCORE_DOMAINS.map(
+      (d) => `${d.name} (${d.game}): ${manualScores[d.id]}`
+    )
+    const context = `ReCOGnAIze Cognitive Assessment — Self-Reported Scores:\n${lines.join('\n')}`
+    setFileContext(context)
+    setFileName('Manual Entry')
+    setScreen('chat')
+  }
+
   const handleNewChat = () => {
     setMessages([])
     setMessage('')
     setFileName(null)
     setFileContext('')
     setError(null)
+    setShowManualEntry(false)
+    setManualScores({ processing_speed: null, executive_function: null, attention: null, memory: null })
     setScreen('upload')
   }
 
@@ -296,8 +327,54 @@ function App() {
             />
           </label>
 
+          <div className="manual-entry-divider">
+            <span className="divider-line" />
+            <span className="divider-text">or</span>
+            <span className="divider-line" />
+          </div>
+
+          {!showManualEntry ? (
+            <button className="manual-entry-toggle" onClick={() => setShowManualEntry(true)}>
+              Don't have your report? Enter your scores manually
+            </button>
+          ) : (
+            <div className="manual-entry-form">
+              <p className="manual-entry-title">Enter your scores for each game</p>
+              {SCORE_DOMAINS.map((domain) => (
+                <div key={domain.id} className="score-row">
+                  <div className="score-row-label">
+                    <span className="score-game">{domain.game}</span>
+                    <span className="score-domain">{domain.name}</span>
+                  </div>
+                  <div className="score-options">
+                    {SCORE_LEVELS.map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        className={`score-pill${manualScores[domain.id] === level ? ' score-pill-active' : ''}`}
+                        data-level={level.toLowerCase()}
+                        onClick={() =>
+                          setManualScores((prev) => ({ ...prev, [domain.id]: level }))
+                        }
+                      >
+                        {level}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <button
+                className="manual-submit-btn"
+                disabled={!allScoresSelected}
+                onClick={handleManualSubmit}
+              >
+                Get My Results
+              </button>
+            </div>
+          )}
+
           <button className="skip-link" onClick={() => setScreen('chat')}>
-            Continue without a file
+            Continue without any scores
           </button>
         </div>
       </div>
