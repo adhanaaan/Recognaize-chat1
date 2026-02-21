@@ -855,33 +855,88 @@ body {
     max-width: 100%;
   }
 
-  .chat-container {
-    height: 100vh;
-    border-radius: 0;
-  }
+  /* ─── Upload screen mobile ─── */
 
   .upload-screen {
     border-radius: 0;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-  }
-
-  .quick-actions {
-    grid-template-columns: 1fr;
-  }
-
-  .upload-screen {
-    padding: 32px 20px;
     justify-content: flex-start;
-    padding-top: 48px;
+    padding: 28px 16px 24px;
+  }
+
+  .upload-logo {
+    width: 56px;
+    height: 56px;
+    margin-bottom: 10px;
+  }
+
+  .upload-title {
+    font-size: 24px;
+    margin-bottom: 4px;
+  }
+
+  .upload-subtitle {
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+
+  .upload-dropzone {
+    padding: 28px 16px;
+    border-radius: 14px;
+    gap: 8px;
+  }
+
+  .upload-cloud-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .upload-dropzone-text {
+    font-size: 14px;
+  }
+
+  .upload-dropzone-hint {
+    font-size: 12px;
+  }
+
+  /* ─── Manual entry mobile ─── */
+
+  .manual-entry-divider {
+    margin: 18px 0 14px;
+    gap: 10px;
+  }
+
+  .manual-entry-toggle {
+    padding: 12px 16px;
+    font-size: 13.5px;
+    border-radius: 12px;
+  }
+
+  .manual-entry-form {
+    padding: 14px 12px;
+    border-radius: 14px;
+  }
+
+  .manual-entry-title {
+    font-size: 13.5px;
+    margin-bottom: 10px;
   }
 
   .score-row {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: 6px;
+    padding: 8px 0;
+  }
+
+  .score-game {
+    font-size: 13px;
+  }
+
+  .score-domain {
+    font-size: 11px;
   }
 
   .score-options {
@@ -891,6 +946,39 @@ body {
   .score-pill {
     flex: 1;
     text-align: center;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .manual-submit-btn {
+    margin-top: 12px;
+    padding: 12px;
+    font-size: 14px;
+    border-radius: 12px;
+  }
+
+  .skip-link {
+    margin-top: 16px;
+    font-size: 13px;
+  }
+
+  /* ─── Chat screen mobile ─── */
+
+  .chat-container {
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .quick-actions {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    max-width: 100%;
+  }
+
+  .quick-btn {
+    padding: 12px 10px;
+    font-size: 12.5px;
+    border-radius: 12px;
   }
 
   .quick-actions-inline {
@@ -902,6 +990,8 @@ body {
     font-size: 11.5px;
     padding: 6px 10px;
   }
+
+  /* ─── Brain cards mobile ─── */
 
   .brain-cards-grid {
     grid-template-columns: 1fr;
