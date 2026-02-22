@@ -73,6 +73,50 @@ class OpenAILLM:
             logger.error(f"Error generating response from OpenAI: {e}")
             raise
     
+    def chat_completion(
+        self,
+        messages: List[Dict],
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 800,
+    ) -> str:
+        """
+        Generate a chat completion from conversation messages.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys
+            system_prompt: System instructions for the model
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens in response
+
+        Returns:
+            Generated text response
+        """
+        try:
+            api_messages: List[ChatCompletionMessageParam] = []
+
+            if system_prompt:
+                api_messages.append({"role": "system", "content": system_prompt})  # type: ignore
+
+            for msg in messages:
+                api_messages.append({
+                    "role": msg.get("role", "user"),  # type: ignore
+                    "content": msg.get("content", ""),  # type: ignore
+                })
+
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=api_messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+
+            result = response.choices[0].message.content
+            return result if result else ""
+        except Exception as e:
+            logger.error(f"Error generating chat completion from OpenAI: {e}")
+            raise
+
     def generate_health_recommendation(
         self,
         user_profile: Dict,

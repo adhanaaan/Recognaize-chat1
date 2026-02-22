@@ -292,6 +292,12 @@ function App() {
         <div className="upload-screen">
           <img src={logo} alt="ReCOGnAIze" className="upload-logo" />
           <h1 className="upload-title">ReCOGnAIze</h1>
+          <span className="gemini-badge gemini-badge-upload">
+            <svg className="gemini-icon" width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z" fill="currentColor"/>
+            </svg>
+            Powered by Google Gemini
+          </span>
           <p className="upload-subtitle">Upload your cognitive assessment report to get started</p>
 
           {error && (
@@ -391,6 +397,12 @@ function App() {
         <div className="chat-header">
           <img src={logo} alt="ReCOGnAIze" className="header-logo" />
           <span className="header-title">ReCOGnAIze</span>
+          <span className="gemini-badge">
+            <svg className="gemini-icon" width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z" fill="currentColor"/>
+            </svg>
+            Powered by Google Gemini
+          </span>
           <button type="button" className="new-chat-btn" onClick={handleNewChat}>
             New Chat
           </button>

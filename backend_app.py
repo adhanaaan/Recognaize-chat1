@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# Load environment variables from .env so OPENAI_API_KEY is available
+# Load environment variables from .env so API keys are available
 load_dotenv()
 
 # Ensure we can import from src/
@@ -19,6 +19,7 @@ if SRC_DIR not in sys.path:
 from domain_chatbot import initialize_chatbot  # type: ignore
 from file_processor import FileProcessor  # type: ignore
 from report_summarizer import summarize_report  # type: ignore
+from llm_provider import get_provider_name  # type: ignore
 
 
 class ChatRequest(BaseModel):
@@ -69,10 +70,10 @@ def _format_report_reply(text: str) -> str:
         formatted = formatted.replace(header, f"{header}\n")
 
     # Put bullets on separate lines when they're inline after text
-    formatted = formatted.replace(" • ", "\n• ")
+    formatted = formatted.replace(" \u2022 ", "\n\u2022 ")
 
-    # Also handle cases like "Next Steps:\n•" where bullets run together
-    formatted = formatted.replace("Next Steps:\n•", "Next Steps:\n\n•")
+    # Also handle cases like "Next Steps:\n\u2022" where bullets run together
+    formatted = formatted.replace("Next Steps:\n\u2022", "Next Steps:\n\n\u2022")
 
     return formatted.strip()
 
@@ -160,7 +161,7 @@ async def chat_endpoint(payload: ChatRequest) -> ChatResponse:
             "You are an expert cognitive health assistant helping a user understand their "
             "ReCOGnAIze cognitive performance report. You must use the report text that is "
             "provided to you and explain it in clear, supportive language suitable for older adults. "
-            "Always answer concisely, using short paragraphs and clean bullet lines that start with '• '. "
+            "Always answer concisely, using short paragraphs and clean bullet lines that start with '\u2022 '. "
             "Do NOT use markdown headings like '#', '##', or '###'. "
             "If the conversation history already includes an explanation of the user's scores, "
             "avoid repeating the same detailed description of each domain. Instead, give a very brief "
@@ -185,7 +186,6 @@ async def chat_endpoint(payload: ChatRequest) -> ChatResponse:
         )
 
         if wants_scores_only:
-            # Scores-only format for questions explicitly asking for exact scores
             user_content_parts = [
                 "You have been given a summarized cognitive performance report for this user.",
                 "The user is specifically asking for their exact score for each game / domain.",
@@ -197,15 +197,13 @@ async def chat_endpoint(payload: ChatRequest) -> ChatResponse:
                 "  explicitly asks for it.",
                 "- Format the answer exactly like this, with no extra text before or after:",
                 "  Your Results by Game:",
-                "  • Processing Speed (Symbol Matching): 28 – HIGH (average: 29)",
-                "  • Executive Function (Trail Making): 12 – MEDIUM (average: 18)",
+                "  \u2022 Processing Speed (Symbol Matching): 28 \u2013 HIGH (average: 29)",
+                "  \u2022 Executive Function (Trail Making): 12 \u2013 MEDIUM (average: 18)",
                 "  (Use the real numbers and domains from the report.)",
-                "- Use the bullet character '•' at the start of each line, not '-'.",
+                "- Use the bullet character '\u2022' at the start of each line, not '-'.",
                 "- Keep the answer under 6 bullets if possible.",
             ]
         elif is_personalization_intent:
-            # User is explicitly asking for more personalization; focus on
-            # a brief reflection plus targeted clarifying questions.
             user_content_parts = [
                 "You have been given a summarized cognitive performance report for this user.",
                 "The user is asking you to personalize recommendations further by asking them specific questions.",
@@ -213,15 +211,13 @@ async def chat_endpoint(payload: ChatRequest) -> ChatResponse:
                 "- You DO have access to the user's results in the REPORT TEXT below. Never say that you ",
                 "  do not have their specific results or that you are missing details.",
                 "- Start with one short, empathetic sentence acknowledging that wanting a more personalized plan is understandable.",
-                "- Then, in 1–2 short sentences, briefly reflect what the report suggests (for example: which domains look strong, which look lower).",
-                "- Next, ask 3–5 clear, concrete questions to personalize the plan further. Focus on their exercise habits, diet, sleep, mood/stress, vascular risk factors, and daily functioning.",
-                "- Format each question as a separate bullet line starting with '• '.",
-                "- Do NOT provide a full plan yet—only set up the next step by gathering the right details.",
+                "- Then, in 1\u20132 short sentences, briefly reflect what the report suggests (for example: which domains look strong, which look lower).",
+                "- Next, ask 3\u20135 clear, concrete questions to personalize the plan further. Focus on their exercise habits, diet, sleep, mood/stress, vascular risk factors, and daily functioning.",
+                "- Format each question as a separate bullet line starting with '\u2022 '.",
+                "- Do NOT provide a full plan yet\u2014only set up the next step by gathering the right details.",
                 "- Use simple, supportive language suitable for older adults and avoid medical jargon.",
             ]
         elif is_full_plan_intent:
-            # Full structured advice format inspired by the slide deck for
-            # users who explicitly ask for a comprehensive plan.
             user_content_parts = [
                 "You have been given a summarized cognitive performance report for this user.",
                 "FIRST, carefully read the REPORT TEXT below. THEN answer the user's question.",
@@ -231,41 +227,38 @@ async def chat_endpoint(payload: ChatRequest) -> ChatResponse:
                 "- Always base your explanation on the information in the report, including the actual scores and ",
                 "  game / domain names when helpful.",
                 "- Focus on being concise and easy to read.",
-                "- Use short paragraphs (2–3 sentences) and bullet lines starting with '• '.",
+                "- Use short paragraphs (2\u20133 sentences) and bullet lines starting with '\u2022 '.",
                 "- Do NOT use markdown headings (#, ##, ###) or HTML tags.",
                 "",
                 "FORMAT YOUR ANSWER USING THESE FOUR SECTIONS IN ORDER (unless the user explicitly asks for something different):",
                 "1) A heading line for UNDERSTANDING RESULTS:",
-                "   '📊 Understanding Your Results' on its own line.",
-                "   Then 1 short paragraph (2–3 short sentences) that explains the overall pattern of scores ",
+                "   '\U0001f4ca Understanding Your Results' on its own line.",
+                "   Then 1 short paragraph (2\u20133 short sentences) that explains the overall pattern of scores ",
                 "   in simple, reassuring language.",
                 "",
                 "2) A heading line for ACTION PLAN:",
-                "   '🎯 Your Personalized Action Plan' on its own line.",
-                "   Then 3–6 bullet lines (each starting with '• ') that describe concrete lifestyle and cognitive ",
+                "   '\U0001f3af Your Personalized Action Plan' on its own line.",
+                "   Then 3\u20136 bullet lines (each starting with '\u2022 ') that describe concrete lifestyle and cognitive ",
                 "   strategies tailored to this user's pattern of results (for example: physical activity, diet, ",
                 "   sleep, cognitive exercises, managing vascular risk factors).",
                 "",
                 "3) A heading line for MONITORING / RETEST:",
-                "   '📅 Monitoring Your Progress' on its own line.",
-                "   Then 2–4 bullet lines that describe when to check in on progress and when to repeat the ",
+                "   '\U0001f4c5 Monitoring Your Progress' on its own line.",
+                "   Then 2\u20134 bullet lines that describe when to check in on progress and when to repeat the ",
                 "   ReCOGnAIze assessment (for example: 3 months for lifestyle check-in, 12 months for retest).",
                 "",
                 "4) A heading line for WHEN TO SEE A DOCTOR:",
-                "   '⚕️ When to See Your Doctor' on its own line.",
-                "   Then 3–6 bullet lines describing red-flag symptoms or changes that should prompt the user ",
+                "   '\u2695\ufe0f When to See Your Doctor' on its own line.",
+                "   Then 3\u20136 bullet lines describing red-flag symptoms or changes that should prompt the user ",
                 "   to talk to their healthcare provider for further assessment.",
                 "",
                 "END with one short, reassuring sentence reminding the user that this is educational information ",
                 "and does not replace medical advice, and that early discussion with their healthcare provider can help.",
-                "Then add a final line starting with 'To personalize this further, please tell me:' followed by 2–3",
+                "Then add a final line starting with 'To personalize this further, please tell me:' followed by 2\u20133",
                 "short questions (in a single sentence or separated by semicolons) about their lifestyle or health, ",
                 "so that future advice can be more tailored.",
             ]
         else:
-            # Focused Q&A format for other report-based questions (for example,
-            # "what does my processing speed score mean", "how often should I retake",
-            # "how do my scores compare to others my age").
             user_content_parts = [
                 "You have been given a summarized cognitive performance report for this user.",
                 "FIRST, carefully read the REPORT TEXT below. THEN answer the user's specific question.",
@@ -275,8 +268,8 @@ async def chat_endpoint(payload: ChatRequest) -> ChatResponse:
                 "- Directly address the user's question (for example: understanding a single domain score, comparing scores to age norms, retesting frequency, lifestyle impact).",
                 "- Where relevant, briefly reference what the report shows (for example: which domains are strong or lower) in everyday language.",
                 "- Use a warm, empathetic tone (for example: 'I understand this can be concerning...').",
-                "- Use short paragraphs and, when helpful, 2–4 bullet lines starting with '• ' to list concrete suggestions.",
-                "- End with one short section that begins with 'Here is what you can do today:' and give 2–3 simple, practical next steps.",
+                "- Use short paragraphs and, when helpful, 2\u20134 bullet lines starting with '\u2022 ' to list concrete suggestions.",
+                "- End with one short section that begins with 'Here is what you can do today:' and give 2\u20133 simple, practical next steps.",
                 "- Include a brief reminder that this is educational guidance and that medical decisions should be made with a healthcare provider.",
                 "- Do NOT force the full four-section slide layout in this mode; only use headings if they come naturally from the answer.",
             ]
@@ -292,14 +285,13 @@ async def chat_endpoint(payload: ChatRequest) -> ChatResponse:
 
         messages.append({"role": "user", "content": "\n".join(user_content_parts)})
 
-        response = chatbot.client.chat.completions.create(
-            model=chatbot.model,
-            messages=[{"role": "system", "content": system_prompt}] + messages,
+        raw_content = chatbot.chat_completion(
+            messages=messages,
+            system_prompt=system_prompt,
             temperature=0.7,
             max_tokens=800,
         )
 
-        raw_content = response.choices[0].message.content or ""
         content = _format_report_reply(raw_content)
         return ChatResponse(reply=content)
 
@@ -365,3 +357,10 @@ async def upload_endpoint(file: UploadFile = File(...)) -> Dict[str, Any]:
 async def healthcheck() -> Dict[str, str]:
     """Simple health check endpoint."""
     return {"status": "ok"}
+
+
+@app.get("/model-info")
+async def model_info() -> Dict[str, str]:
+    """Return the active LLM provider name for frontend display."""
+    provider = get_provider_name()
+    return {"provider": provider}

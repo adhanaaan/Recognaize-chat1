@@ -1,21 +1,42 @@
 """
 Qdrant-based vector store for cognitive health knowledge base
-Supports both in-memory and server modes
+Supports both in-memory and server modes.
+Embedding provider: Google Gemini (default) or OpenAI (fallback).
 """
 
 import os
 import json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
-from openai import OpenAI
+
+# Handle both relative and absolute imports
+try:
+    from .llm_provider import get_llm, get_provider_name, get_embedding_dimension
+except ImportError:
+    from llm_provider import get_llm, get_provider_name, get_embedding_dimension
 
 
 class VectorStore:
     def __init__(self):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.embedding_model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+        self._provider_name = get_provider_name()
+        self._embedding_dim = get_embedding_dimension()
+
+        # Initialise the LLM (used for embeddings)
+        self._llm = get_llm()
+
+        # Keep OpenAI client as fallback for embeddings when provider is openai
+        if self._provider_name == "openai":
+            from openai import OpenAI
+
+            self._openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            self._openai_embedding_model = os.getenv(
+                "EMBEDDING_MODEL", "text-embedding-3-small"
+            )
+        else:
+            self._openai_client = None
+            self._openai_embedding_model = None
 
         # Qdrant configuration
         qdrant_url = os.getenv("QDRANT_URL", "").strip()
@@ -39,20 +60,48 @@ class VectorStore:
         # Load knowledge base
         self._load_knowledge_base()
 
+    # ── embeddings ──────────────────────────────────────────────
+
+    def _embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings for a list of texts using the active provider."""
+        if self._provider_name == "google":
+            return self._llm.embed_texts(texts)
+        # OpenAI path
+        data = self._openai_client.embeddings.create(
+            model=self._openai_embedding_model,
+            input=texts,
+        ).data
+        return [item.embedding for item in data]
+
+    def _embed_query(self, text: str) -> List[float]:
+        """Generate an embedding for a single query string."""
+        if self._provider_name == "google":
+            return self._llm.embed_query(text)
+        # OpenAI path
+        data = self._openai_client.embeddings.create(
+            model=self._openai_embedding_model,
+            input=[text],
+        ).data
+        return data[0].embedding
+
+    # ── collection setup ────────────────────────────────────────
+
     def _initialize_collection(self) -> None:
         """Create or get Qdrant collection"""
         try:
-            # Try to get existing collection
             self.qdrant_client.get_collection(self.collection_name)
             print(f"Using existing Qdrant collection: {self.collection_name}")
         except Exception:
-            # Create new collection if it doesn't exist
-            # NOTE: text-embedding-3-small outputs 1536 dims
             self.qdrant_client.create_collection(
                 collection_name=self.collection_name,
-                vectors_config=VectorParams(size=1536, distance=Distance.COSINE),
+                vectors_config=VectorParams(
+                    size=self._embedding_dim, distance=Distance.COSINE
+                ),
             )
-            print(f"Created new Qdrant collection: {self.collection_name}")
+            print(
+                f"Created new Qdrant collection: {self.collection_name} "
+                f"(dim={self._embedding_dim})"
+            )
 
     def _load_knowledge_base(self) -> None:
         """Load knowledge from JSON files and index them"""
@@ -80,7 +129,6 @@ class VectorStore:
 
                 domain = filename.replace("_rules.json", "")
 
-                # Process based on file type
                 if isinstance(data, dict):
                     for key, content in data.items():
                         if isinstance(content, dict):
@@ -116,7 +164,6 @@ class VectorStore:
             except Exception as e:
                 print(f"Error loading {filename}: {e}")
 
-        # Embed and index all documents
         if documents:
             print(f"Indexing {len(documents)} documents...")
             self._embed_and_index_documents(documents)
@@ -143,18 +190,14 @@ class VectorStore:
         """Embed documents and index them in Qdrant"""
         try:
             texts = [doc["text"] for doc in documents]
-
-            embeddings = self.client.embeddings.create(
-                model=self.embedding_model,
-                input=texts,
-            ).data
+            embeddings = self._embed_texts(texts)
 
             points: List[PointStruct] = []
             for i, (doc, emb) in enumerate(zip(documents, embeddings), start=1):
                 points.append(
                     PointStruct(
                         id=i,
-                        vector=emb.embedding,
+                        vector=emb,
                         payload={
                             "text": doc["text"],
                             "domain": doc["domain"],
@@ -174,7 +217,11 @@ class VectorStore:
         except Exception as e:
             print(f"Error embedding and indexing documents: {e}")
 
-    def search(self, query: str, k: int = 5, threshold: float = 0.3) -> List[Dict[str, Any]]:
+    # ── search ──────────────────────────────────────────────────
+
+    def search(
+        self, query: str, k: int = 5, threshold: float = 0.3
+    ) -> List[Dict[str, Any]]:
         """
         Search for similar documents using Qdrant
 
@@ -187,10 +234,7 @@ class VectorStore:
             List of similar documents with metadata
         """
         try:
-            query_embedding = self.client.embeddings.create(
-                model=self.embedding_model,
-                input=[query],
-            ).data[0].embedding
+            query_embedding = self._embed_query(query)
 
             def _run_search(score_threshold: float):
                 return self.qdrant_client.query_points(
@@ -202,13 +246,12 @@ class VectorStore:
 
             hits = _run_search(threshold)
 
-            # If no results above threshold, lower it and try again
             if not hits:
                 hits = _run_search(0.1)
 
             results: List[Dict[str, Any]] = []
             for hit in hits:
-                payload: Dict[str, Any] = hit.payload or {}  # <-- fixes Pylance Optional warning
+                payload: Dict[str, Any] = hit.payload or {}
 
                 results.append(
                     {
@@ -246,7 +289,7 @@ class VectorStore:
 
             results: List[Dict[str, Any]] = []
             for point in points:
-                payload: Dict[str, Any] = point.payload or {}  # <-- fixes Pylance Optional warning
+                payload: Dict[str, Any] = point.payload or {}
 
                 results.append(
                     {

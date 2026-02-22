@@ -338,6 +338,30 @@ body {
   letter-spacing: -0.2px;
 }
 
+.gemini-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #e8f0fe 0%, #f3e8fd 100%);
+  border: 1px solid #c4b5fd;
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #4338ca;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.gemini-badge-upload {
+  margin-bottom: 10px;
+}
+
+.gemini-icon {
+  color: #6366f1;
+  flex-shrink: 0;
+}
+
 .new-chat-btn {
   background: none;
   border: 1px solid var(--border-strong);
@@ -960,6 +984,19 @@ body {
   .skip-link {
     margin-top: 16px;
     font-size: 13px;
+  }
+
+  /* ─── Gemini badge mobile ─── */
+
+  .gemini-badge {
+    font-size: 10px;
+    padding: 3px 8px;
+    gap: 3px;
+  }
+
+  .gemini-icon {
+    width: 11px;
+    height: 11px;
   }
 
   /* ─── Chat screen mobile ─── */

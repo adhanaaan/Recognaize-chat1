@@ -1,17 +1,18 @@
-import base64
 import io
 import os
 from typing import List
 
 from pdf2image import convert_from_bytes
 
-from openai import OpenAI
+# Handle both relative and absolute imports
+try:
+    from .llm_provider import get_llm, get_provider_name
+except ImportError:
+    from llm_provider import get_llm, get_provider_name
 
 
 def _images_from_pdf_bytes(pdf_bytes: bytes, max_pages: int = 6) -> List[bytes]:
     """Convert first max_pages of a PDF (bytes) to PNG image bytes."""
-    # Use a moderate DPI and only render the first max_pages to
-    # keep OCR reasonably fast even for large PDFs.
     images = convert_from_bytes(
         pdf_bytes,
         fmt="png",
@@ -29,8 +30,17 @@ def _images_from_pdf_bytes(pdf_bytes: bytes, max_pages: int = 6) -> List[bytes]:
     return png_bytes_list
 
 
-def _extract_text_from_image_bytes(client: OpenAI, image_bytes: bytes) -> str:
+def _extract_text_from_image_bytes_gemini(llm, image_bytes: bytes) -> str:
+    """Use Gemini vision model to extract textual content from a single page image."""
+    return llm.extract_text_from_image(image_bytes)
+
+
+def _extract_text_from_image_bytes_openai(image_bytes: bytes) -> str:
     """Use OpenAI vision model to extract textual content from a single page image."""
+    import base64
+    from openai import OpenAI
+
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     b64 = base64.b64encode(image_bytes).decode("utf-8")
 
     system_prompt = (
@@ -69,19 +79,23 @@ def _extract_text_from_image_bytes(client: OpenAI, image_bytes: bytes) -> str:
 
 
 def extract_text_from_pdf_with_vision(pdf_bytes: bytes, max_pages: int = 6) -> str:
-    """Use OpenAI vision to OCR up to max_pages from a PDF and return concatenated text.
+    """Use vision model to OCR up to max_pages from a PDF and return concatenated text.
 
     This is used as a fallback when PyPDF2 cannot extract meaningful text
     (e.g., for non-highlightable / scanned PDFs).
     """
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    provider = get_provider_name()
+    llm = get_llm() if provider == "google" else None
 
     page_images = _images_from_pdf_bytes(pdf_bytes, max_pages=max_pages)
     all_pages_text: List[str] = []
 
     for page_index, img_bytes in enumerate(page_images, start=1):
         try:
-            page_text = _extract_text_from_image_bytes(client, img_bytes)
+            if provider == "google" and llm is not None:
+                page_text = _extract_text_from_image_bytes_gemini(llm, img_bytes)
+            else:
+                page_text = _extract_text_from_image_bytes_openai(img_bytes)
         except Exception as e:
             page_text = f"[OCR error on page {page_index}: {e}]"
         if page_text:
